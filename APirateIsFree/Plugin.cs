@@ -15,10 +15,5 @@ namespace APirateIsFree
         {
             HarmonyPatches.ApplyHarmonyPatches();
         }
-
-        void Update()
-        {
-
-        }
     }
 }

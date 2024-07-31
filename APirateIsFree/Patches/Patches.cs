@@ -8,7 +8,6 @@ namespace APirateIsFree.Patches
 {
     [HarmonyPatch(typeof(VRRig))]
     [HarmonyPatch("RequestCosmetics", MethodType.Normal)]
-    [HarmonyWrapSafe]
     internal class VRRigPatch
     {
         private static bool Prefix(ref VRRig __instance, ref PhotonMessageInfo info)
@@ -20,17 +19,19 @@ namespace APirateIsFree.Patches
                 string[] array2 = CosmeticsController.instance.tryOnSet.ToDisplayNameArray();
 
                 var tempList = new List<string>(array);
-                foreach (var item in array)
+                var modifiedList = new List<string>(array);
+                foreach (var item in tempList)
                 {
                     if (AllowedPatch.badItems.Contains(item))
                     {
                         Debug.Log($"Stripping non-owned cosmetic {item} from response");
-                        tempList.Remove(item);
+
+                        modifiedList[modifiedList.ToArray().IndexOfRef(item)] = "NOTHING";
                     }
                 }
-                array = tempList.ToArray();
-
-                __instance.photonView.RPC("UpdateCosmeticsWithTryon", info.Sender, array, array2);
+                var newarr = modifiedList.ToArray();
+                Debug.Log(newarr.ToJson());
+                __instance.photonView.RPC("UpdateCosmeticsWithTryon", info.Sender, newarr, array2);
             }
 
             return false;
