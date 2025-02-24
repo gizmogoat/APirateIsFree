@@ -81,6 +81,23 @@ namespace APirateIsFree.Patches
     }
 
     [HarmonyPatch(typeof(VRRig))]
+    [HarmonyPatch("LocalUpdateCosmeticsWithTryon", MethodType.Normal), HarmonyWrapSafe]
+    internal class LocalUpdateCosmeticsPatch
+    {
+        private static bool Prefix(VRRig __instance, CosmeticsController.CosmeticSet newTryOnSet)
+        {
+            if (!__instance.isOfflineVRRig) { return true; }
+            __instance.cosmeticSet = CosmeticsController.instance.currentWornSet;
+            __instance.tryOnSet = newTryOnSet;
+            if (__instance.initializedCosmetics)
+            {
+                __instance.SetCosmeticsActive();
+            }
+            return false;
+        }
+    }
+    
+    [HarmonyPatch(typeof(VRRig))]
     [HarmonyPatch("IsItemAllowed", MethodType.Normal), HarmonyWrapSafe]
     internal class AllowedPatch
     {
