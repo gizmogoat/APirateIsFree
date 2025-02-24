@@ -1,45 +1,87 @@
 ﻿using GorillaNetworking;
 using HarmonyLib;
-using Photon.Pun;
 using System.Collections.Generic;
+using System.Linq;
+using Photon.Pun;
 using UnityEngine;
 
 namespace APirateIsFree.Patches
 {
     [HarmonyPatch(typeof(VRRig))]
-    [HarmonyPatch("RequestCosmetics", MethodType.Normal)]
+    [HarmonyPatch("RequestCosmetics", MethodType.Normal), HarmonyWrapSafe]
     internal class VRRigPatch
     {
-        private static bool Prefix(ref VRRig __instance, ref PhotonMessageInfo info)
+        private static bool Prefix(ref VRRig __instance, ref PhotonMessageInfoWrapped info)
         {
-            __instance.IncrementRPC(info, "RequestCosmetics");
+            NetPlayer player = NetworkSystem.Instance.GetPlayer(info.senderID);
             if (__instance.netView.IsMine && CosmeticsController.hasInstance)
             {
-                string[] array = CosmeticsController.instance.currentWornSet.ToDisplayNameArray();
-                string[] array2 = CosmeticsController.instance.tryOnSet.ToDisplayNameArray();
-
-                var tempList = new List<string>(array);
-                var modifiedList = new List<string>(array);
-                foreach (var item in tempList)
+                if (CosmeticsController.instance.isHidingCosmeticsFromRemotePlayers)
                 {
-                    if (AllowedPatch.badItems.Contains(item))
+                    __instance.netView.SendRPC("RPC_HideAllCosmetics", info.Sender);
+                    return false;
+                }
+                
+                var tempCurrentWornSet = new CosmeticsController.CosmeticSet();
+                tempCurrentWornSet.CopyItems(CosmeticsController.instance.currentWornSet);
+                foreach (var item in tempCurrentWornSet.items)
+                {
+                    if (AllowedPatch.badItems.Contains(item.itemName))
                     {
                         Debug.Log($"Stripping non-owned cosmetic {item} from response");
 
-                        modifiedList[modifiedList.ToArray().IndexOfRef(item)] = "NOTHING";
+                        tempCurrentWornSet.items[tempCurrentWornSet.items.ToList().IndexOf(item)] =
+                            CosmeticsController.instance.nullItem;
                     }
                 }
-                var newarr = modifiedList.ToArray();
-                Debug.Log(newarr.ToJson());
-                __instance.netView.SendRPC("UpdateCosmeticsWithTryon", info.Sender, newarr, array2);
-            }
+                
+                int[] array = tempCurrentWornSet.ToPackedIDArray();
+                int[] array2 = CosmeticsController.instance.tryOnSet.ToPackedIDArray();
 
+                __instance.netView.SendRPC("RPC_UpdateCosmeticsWithTryonPacked", player, array, array2);
+            }
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(GorillaNetworking.CosmeticsController))]
+    [HarmonyPatch("UpdateWornCosmetics", MethodType.Normal), HarmonyWrapSafe]
+    internal class UpdateWornCosmeticsPatch
+    {
+        private static bool Prefix(CosmeticsController __instance, bool sync)
+        {
+            GorillaTagger.Instance.offlineVRRig.LocalUpdateCosmeticsWithTryon(__instance.currentWornSet, __instance.tryOnSet);
+            if (sync && GorillaTagger.Instance.myVRRig != null)
+            {
+                if (__instance.isHidingCosmeticsFromRemotePlayers)
+                {
+                    GorillaTagger.Instance.myVRRig.SendRPC("RPC_HideAllCosmetics", RpcTarget.All);
+                    return false;
+                }
+                
+                var tempCurrentWornSet = new CosmeticsController.CosmeticSet();
+                tempCurrentWornSet.CopyItems(__instance.currentWornSet);
+                foreach (var item in tempCurrentWornSet.items)
+                {
+                    if (AllowedPatch.badItems.Contains(item.itemName))
+                    {
+                        Debug.Log($"Stripping non-owned cosmetic {item} from response");
+
+                        tempCurrentWornSet.items[tempCurrentWornSet.items.ToList().IndexOf(item)] =
+                            CosmeticsController.instance.nullItem;
+                    }
+                }
+                
+                int[] array = tempCurrentWornSet.ToPackedIDArray();
+                int[] array2 = __instance.tryOnSet.ToPackedIDArray();
+                GorillaTagger.Instance.myVRRig.SendRPC("RPC_UpdateCosmeticsWithTryonPacked", RpcTarget.All, array, array2);
+            }
             return false;
         }
     }
 
     [HarmonyPatch(typeof(VRRig))]
-    [HarmonyPatch("IsItemAllowed", MethodType.Normal)]
+    [HarmonyPatch("IsItemAllowed", MethodType.Normal), HarmonyWrapSafe]
     internal class AllowedPatch
     {
         public static List<string> badItems = new List<string>();
@@ -56,7 +98,7 @@ namespace APirateIsFree.Patches
     }
 
     [HarmonyPatch(typeof(CosmeticsController.CosmeticSet))]
-    [HarmonyPatch("LoadFromPlayerPreferences", MethodType.Normal)]
+    [HarmonyPatch("LoadFromPlayerPreferences", MethodType.Normal), HarmonyWrapSafe]
     internal class UnlockPatch
     {
         private static void Postfix()
@@ -71,7 +113,7 @@ namespace APirateIsFree.Patches
         }
     }
 
-    [HarmonyPatch(typeof(CosmeticsController))]
+    [HarmonyPatch(typeof(CosmeticsController)), HarmonyWrapSafe]
     [HarmonyPatch(nameof(CosmeticsController.CompareCategoryToSavedCosmeticSlots))]
     internal class CheckPatch
     {
@@ -82,7 +124,7 @@ namespace APirateIsFree.Patches
         }
     }
 
-    [HarmonyPatch(typeof(CosmeticsController.CosmeticSet))]
+    [HarmonyPatch(typeof(CosmeticsController.CosmeticSet)), HarmonyWrapSafe]
     [HarmonyPatch(nameof(CosmeticsController.CosmeticSet.LoadFromPlayerPreferences))]
     internal class SlotApplyPatch
     {
