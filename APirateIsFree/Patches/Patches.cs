@@ -122,11 +122,12 @@ namespace APirateIsFree.Patches
         {
             foreach (CosmeticsController.CosmeticItem item in CosmeticsController.instance.allCosmetics)
             {
+                if (!item.itemName.Contains(".")) continue;
                 CosmeticsController.instance.UnlockItem(item.itemName);
-                CosmeticsController.instance.UpdateWardrobeModelsAndButtons();
-                CosmeticsController.instance.UpdateWornCosmetics();
-                CosmeticsController.instance.UpdateMyCosmetics();
             }
+            CosmeticsController.instance.UpdateWardrobeModelsAndButtons();
+            CosmeticsController.instance.UpdateWornCosmetics();
+            CosmeticsController.instance.UpdateMyCosmetics();
         }
     }
 
